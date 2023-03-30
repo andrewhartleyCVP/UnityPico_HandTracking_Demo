@@ -176,7 +176,6 @@ public class HandClickCtrl : MonoBehaviour
     }
     
     //Fire from the raypointer
- 
     private void ClickFire()
     {
         if (bulletPrefab == null)

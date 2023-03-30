@@ -32,30 +32,42 @@ public class ArcadeManager: MonoBehaviour
     public GameObject coinPrefab;
     public string CurrCoinValStr { get; set; }
     public int CurrCoinVal { get; set; }
-
     public bool CoinGrabbed { get; set; }
     private GameObject currCoin = null;
-
 
     [Header("Text Components")]
     public TextMeshProUGUI scoreText;
     public TextMeshProUGUI topScoreText;
     public TextMeshProUGUI timeText;
 
-
     [Header("Game Area Components")]
     public GameObject arcadePlayArea;
-    public GameObject targetArea;
     public GameObject tutorialButton;
     public GameObject arcadeButton;
     public GameObject zoneParent;
     public Transform[] zoneList;
 
+    [Header("Target Components")]
+    public GameObject targetArea;
+    public Transform target1;
+    public Transform target2;
+    public Transform target3;
+    public Animator t1Anim;
+    public Animator t2Anim;
+    public Animator t3Anim;
+    public BoxCollider target1Col;
+    public BoxCollider target2Col;
+    public BoxCollider target3Col;
+    public TargetPosCtrl targetPosCtrl;
+
+    private TargetPosition[] targetPositions = null;
+    private TargetPosition startingPosition = null;
+    private float targetSwitchDelay = .5f;
 
     [Header("Game Logic Components")]
+    public float maxTime = 60f;
     private List<GameObject> hatList = new List<GameObject>();
     public GameObject[] scoreHatPrefabs;
-    public float maxTime = 60f;
 
     private GameObject prevHat;
     private bool last3Seconds = false;
@@ -73,6 +85,7 @@ public class ArcadeManager: MonoBehaviour
     void Start()
     {
         IntroSetup();
+        Invoke("StartNewGame", 3f);
     }
 
     // Update is called once per frame
@@ -81,10 +94,7 @@ public class ArcadeManager: MonoBehaviour
         TimerUpdate();
     }
 
-    public bool ArcadeReady()
-    {
-        return currGameState == GameState.Waiting;
-    }
+    public bool ArcadeReady() => currGameState == GameState.Waiting;
 
     //Arcade Logic methods area
     private void IntroSetup()
@@ -97,6 +107,38 @@ public class ArcadeManager: MonoBehaviour
         Random.InitState((int)System.DateTime.Now.Ticks); //To Randomize the random num gen
     }
 
+    public void ResetHats()
+    {
+        foreach (GameObject box in hatList)
+            Destroy(box);
+        hatList.Clear();
+    }
+
+    public void ResetScore()
+    {
+        currScore = 0;
+        scoreText.text = currScore.ToString();
+    }
+
+    public void ResetTargets()
+    {
+        //Arcade play area needs to be active for it to grab the positions correctly
+        //Call this method in GameStart after turning on arcade play area
+        if(targetPositions == null)
+        {
+            targetPositions = targetPosCtrl.targetPositions;
+            startingPosition = targetPositions[0];
+        }
+
+        target1.position = startingPosition.target1Pos;
+        target2.position = startingPosition.target2Pos;
+        target3.position = startingPosition.target3Pos;
+        target1Col.enabled = true;
+        target2Col.enabled = true;
+        target3Col.enabled = true;
+    }
+
+    //Called from button to start new game
     public void StartNewGame()
     {
         arcadeButton.SetActive(false);
@@ -113,6 +155,8 @@ public class ArcadeManager: MonoBehaviour
         SoundManager.instance.PlayReady();
         arcadePlayArea.SetActive(true);
         targetArea.SetActive(true);
+        ResetTargets();
+
         yield return new WaitForSeconds(1.5f);
 
         SoundManager.instance.PlayGo();
@@ -122,20 +166,7 @@ public class ArcadeManager: MonoBehaviour
         AddScoreHat();
     }
 
-    public void ResetHats()
-    {
-        foreach (GameObject box in hatList)
-            Destroy(box);
-
-        hatList.Clear();
-    }
-
-    public void ResetScore()
-    {
-        currScore = 0;
-        scoreText.text = currScore.ToString();
-    }
-
+    //Adds a new hat to the table
     public void AddScoreHat()
     {
         int prefabNum = Random.Range(0, scoreHatPrefabs.Length);
@@ -159,19 +190,21 @@ public class ArcadeManager: MonoBehaviour
         zoneList[idx] = prevZone;
     }
 
+    //Called from hat when correct coin to hat is matched
     public void UpdateScore()
     {
         currScore += 1;
         scoreText.text = currScore.ToString();
         SoundManager.instance.PlayCoin();
-
+        //hat has its own self destruct sequence
         if(prevHat != null)
             hatList.Remove(prevHat);
         prevHat = null;
-
+        //adds a new hat
         AddScoreHat();
     }
 
+    //timer for the game
     private void TimerUpdate()
     {
         if (currGameState == GameState.Active)
@@ -179,17 +212,18 @@ public class ArcadeManager: MonoBehaviour
             currTime -= 1 * Time.deltaTime;
             timeText.text = currTime.ToString("0");
 
+            //starts the voice countdown
             if(currTime <= 3f && !last3Seconds)
             {
                 last3Seconds = true;
                 StartCoroutine(StartCountDown());
             }
-
+            //ends the game
             if (currTime <= 0)
                 StartCoroutine(EndSequence());
         }
     }
-
+    //voice countdown
     IEnumerator StartCountDown()
     {
         SoundManager.instance.Play3();
@@ -200,7 +234,7 @@ public class ArcadeManager: MonoBehaviour
 
         SoundManager.instance.Play1();
     }
-
+    //end sequence
     IEnumerator EndSequence()
     {
         currGameState = GameState.End;
@@ -216,7 +250,8 @@ public class ArcadeManager: MonoBehaviour
         SoundManager.instance.PlaySuccess();
         GameOver();
     }
-
+    //if a new high score, update and play the new high score
+    //otherwise you get just game over
     private void CheckTopScore()
     {
         if (currScore > topScore)
@@ -228,7 +263,7 @@ public class ArcadeManager: MonoBehaviour
         else
             SoundManager.instance.PlayGameOver();
     }
-
+    //give player 3 seconds to see their score then reset back to starting area
     public void GameOver()
     {
         currTime = 0;
@@ -255,6 +290,8 @@ public class ArcadeManager: MonoBehaviour
         CoinGrabbed = false;
     }
 
+    //Everytime we hit a target, we create a new coin
+
     public void MakeNewCoin()
     {
         DestroyCoin();
@@ -262,8 +299,9 @@ public class ArcadeManager: MonoBehaviour
         currCoin = GameObject.Instantiate(coinPrefab, grabCoinTransform.position, grabCoinTransform.rotation);
         GrabCoinCtrl grabcc = currCoin.GetComponent<GrabCoinCtrl>();
         grabcc.SetUpCoin(CurrCoinVal, CurrCoinValStr);
-    }
 
+    }
+    //sets up value so the GrabCoinCtrl can set the correct value on coin
     public void MakeCoinOne()
     {
         CurrCoinVal = 1;
@@ -285,6 +323,47 @@ public class ArcadeManager: MonoBehaviour
         MakeNewCoin();
     }
 
-    
 
+
+    //Change positions of target 
+    public void StartTargetSwitch()
+    {
+        if (currGameState == GameState.Active)
+            StartCoroutine(SwitchTargetPos());
+    }
+
+    private IEnumerator SwitchTargetPos()
+    {
+        target1Col.enabled = false;
+        target2Col.enabled = false;
+        target3Col.enabled = false;
+
+        t1Anim.SetTrigger("Close");
+        t2Anim.SetTrigger("Close");
+        t3Anim.SetTrigger("Close");
+        yield return new WaitForSeconds(targetSwitchDelay);
+
+        int newPosNum = Random.Range(1, targetPositions.Length);
+        target1.position = targetPositions[newPosNum].target1Pos;
+        target2.position = targetPositions[newPosNum].target2Pos;
+        target3.position = targetPositions[newPosNum].target3Pos;
+        TargetPosSwap(newPosNum);
+
+        t1Anim.SetTrigger("Open");
+        t2Anim.SetTrigger("Open");
+        t3Anim.SetTrigger("Open");
+        yield return new WaitForSeconds(targetSwitchDelay);
+
+        target1Col.enabled = true;
+        target2Col.enabled = true;
+        target3Col.enabled = true;
+    }
+
+    private void TargetPosSwap(int idx)
+    {
+        //swap pos so not to repeat pos
+        var prevTargetPos = targetPositions[0];
+        targetPositions[0] = targetPositions[idx];
+        targetPositions[idx] = prevTargetPos;
+    }
 }
