@@ -178,7 +178,7 @@
       "url": "https://packages.unity.com"
     },
     "com.unity.xr.picoxr": {
-      "version": "file:PICO Unity Integration SDK-213",
+      "version": "file:PICO Unity Integration SDK-214",
       "depth": 0,
       "source": "embedded",
       "dependencies": {

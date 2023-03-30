@@ -85,7 +85,6 @@ public class ArcadeManager: MonoBehaviour
     void Start()
     {
         IntroSetup();
-        Invoke("StartNewGame", 3f);
     }
 
     // Update is called once per frame
